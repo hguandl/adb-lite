@@ -7,7 +7,7 @@ using asio::ip::tcp;
 
 namespace adb::protocol {
 
-std::string host_request(const std::string_view& body) {
+std::string host_request(const std::string_view body) {
     std::stringstream ss;
     ss << std::setfill('0') << std::setw(4) << std::hex << body.size() << body;
     return ss.str();
@@ -62,7 +62,7 @@ std::string host_data(tcp::socket& socket) {
     return data;
 }
 
-std::string sync_request(const std::string_view& id, const uint32_t length) {
+std::string sync_request(const std::string_view id, const uint32_t length) {
     const auto len = {
         static_cast<char>(length & 0xff),
         static_cast<char>((length >> 8) & 0xff),
@@ -82,7 +82,7 @@ void sync_response(tcp::socket& socket, std::string& id, uint32_t& length) {
              (response[7] << 24);
 }
 
-void send_host_request(tcp::socket& socket, const std::string_view& request) {
+void send_host_request(tcp::socket& socket, const std::string_view request) {
     socket.write_some(asio::buffer(protocol::host_request(request)));
     std::string failure;
     if (!protocol::host_response(socket, failure)) {
@@ -90,7 +90,7 @@ void send_host_request(tcp::socket& socket, const std::string_view& request) {
     }
 }
 
-void send_sync_request(tcp::socket& socket, const std::string_view& id,
+void send_sync_request(tcp::socket& socket, const std::string_view id,
                        uint32_t length, const char* body) {
     auto data_request = protocol::sync_request(id, length);
     socket.write_some(asio::buffer(data_request));

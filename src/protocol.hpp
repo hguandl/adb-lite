@@ -11,7 +11,7 @@ namespace adb::protocol {
  * @param body Body of the request.
  * @return Encoded request.
  */
-std::string host_request(const std::string_view& body);
+std::string host_request(const std::string_view body);
 
 /// Receive and check the response.
 /**
@@ -35,7 +35,7 @@ std::string host_data(asio::ip::tcp::socket& socket);
  * @param id 4-byte string of the request id.
  * @param length Length of the body.
  */
-std::string sync_request(const std::string_view& id, const uint32_t length);
+std::string sync_request(const std::string_view id, const uint32_t length);
 
 /// Receive the sync response.
 /**
@@ -53,7 +53,7 @@ void sync_response(asio::ip::tcp::socket& socket, std::string& id,
  * @throw std::runtime_error if the response is not OKAY.
  */
 void send_host_request(asio::ip::tcp::socket& socket,
-                       const std::string_view& request);
+                       const std::string_view request);
 
 /// Send an ADB sync request.
 /**
@@ -63,7 +63,7 @@ void send_host_request(asio::ip::tcp::socket& socket,
  * @param body Body of the request.
  */
 void send_sync_request(asio::ip::tcp::socket& socket,
-                       const std::string_view& id, const uint32_t length,
+                       const std::string_view id, const uint32_t length,
                        const char* body);
 
 } // namespace adb::protocol

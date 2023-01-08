@@ -55,7 +55,7 @@ std::string devices() {
 class io_handle_impl : public io_handle {
   public:
     ~io_handle_impl() { close(); }
-    void write(const std::string_view& data) override;
+    void write(const std::string_view data) override;
     std::string read() override;
     void close() override;
 
@@ -78,7 +78,7 @@ std::string io_handle_impl::read() {
     return std::string(buffer.data(), bytes_read);
 }
 
-void io_handle_impl::write(const std::string_view& data) {
+void io_handle_impl::write(const std::string_view data) {
     m_socket.write_some(asio::buffer(data));
 }
 
@@ -90,19 +90,19 @@ class client_impl : public client {
     std::string disconnect() override;
     std::string version() override;
     std::string devices() override;
-    std::string shell(const std::string_view& command) override;
-    std::string exec(const std::string_view& command) override;
-    void push(const std::string_view& src, const std::string_view& dst,
+    std::string shell(const std::string_view command) override;
+    std::string exec(const std::string_view command) override;
+    void push(const std::string_view src, const std::string_view dst,
               int perm) override;
     std::shared_ptr<io_handle>
-    interactive_shell(const std::string_view& command) override;
+    interactive_shell(const std::string_view command) override;
     std::string root() override;
     std::string unroot() override;
     void wait_for_device() override;
 
   private:
     friend class client;
-    explicit client_impl(const std::string_view& serial);
+    explicit client_impl(const std::string_view serial);
 
     std::string m_serial;
 
@@ -120,11 +120,11 @@ class client_impl : public client {
     void switch_to_device(asio::ip::tcp::socket& socket);
 };
 
-std::shared_ptr<client> client::create(const std::string_view& serial) {
-    return std::shared_ptr<client>(new client_impl(serial));
+std::shared_ptr<client> client::create(const std::string_view serial) {
+    return std::make_shared<client>(new client_impl(serial));
 }
 
-client_impl::client_impl(const std::string_view& serial) {
+client_impl::client_impl(const std::string_view serial) {
     m_serial = serial;
 
     tcp::resolver resolver(m_context);
@@ -169,7 +169,7 @@ std::string client_impl::devices() {
     return adb::devices(m_context, m_endpoint);
 }
 
-std::string client_impl::shell(const std::string_view& command) {
+std::string client_impl::shell(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -186,7 +186,7 @@ std::string client_impl::shell(const std::string_view& command) {
     return data;
 }
 
-std::string client_impl::exec(const std::string_view& command) {
+std::string client_impl::exec(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -203,7 +203,7 @@ std::string client_impl::exec(const std::string_view& command) {
     return data;
 }
 
-void client_impl::push(const std::string_view& src, const std::string_view& dst,
+void client_impl::push(const std::string_view src, const std::string_view dst,
                        int perm) {
     check_adb_availabilty();
 
@@ -284,7 +284,7 @@ std::string client_impl::unroot() {
 }
 
 std::shared_ptr<io_handle>
-client_impl::interactive_shell(const std::string_view& command) {
+client_impl::interactive_shell(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -295,7 +295,7 @@ client_impl::interactive_shell(const std::string_view& command) {
     const auto request = std::string("shell:") + command.data();
     send_host_request(socket, request);
 
-    return std::shared_ptr<io_handle>(new io_handle_impl(std::move(socket)));
+    return std::make_shared<io_handle>(new io_handle_impl(std::move(socket)));
 }
 
 void client_impl::wait_for_device() {

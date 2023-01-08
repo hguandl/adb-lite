@@ -38,7 +38,7 @@ class io_handle {
      * @note Typically used to write stdin of a shell command.
      * @note The data should end with a newline.
      */
-    virtual void write(const std::string_view& data) = 0;
+    virtual void write(const std::string_view data) = 0;
 
     /// Read data from the adb connection.
     /**
@@ -66,7 +66,7 @@ class client {
      * @note If the serial is empty, the unique device will be used. If there
      * are multiple devices, an exception will be thrown.
      */
-    static std::shared_ptr<client> create(const std::string_view& serial);
+    static std::shared_ptr<client> create(const std::string_view serial);
     virtual ~client() = default;
 
     /// Connect to the device.
@@ -111,7 +111,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> shell <command>` without stdin.
      */
-    virtual std::string shell(const std::string_view& command) = 0;
+    virtual std::string shell(const std::string_view command) = 0;
 
     /// Send an one-shot shell command to the device, using raw PTY.
     /**
@@ -120,7 +120,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> exec-out <command>` without stdin.
      */
-    virtual std::string exec(const std::string_view& command) = 0;
+    virtual std::string exec(const std::string_view command) = 0;
 
     /// Send a file to the device.
     /**
@@ -130,7 +130,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> push <src> <dst>`.
      */
-    virtual void push(const std::string_view& src, const std::string_view& dst,
+    virtual void push(const std::string_view src, const std::string_view dst,
                       int perm) = 0;
 
     /// Set the user of adbd to root on the device.
@@ -159,7 +159,7 @@ class client {
      * @note Equivalent to `adb -s <serial> shell <command>` with stdin.
      */
     virtual std::shared_ptr<io_handle>
-    interactive_shell(const std::string_view& command) = 0;
+    interactive_shell(const std::string_view command) = 0;
 
     /// Wait for the device to be available.
     /**
