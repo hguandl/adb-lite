@@ -299,6 +299,9 @@ client_impl::interactive_shell(const std::string_view& command) {
 }
 
 void client_impl::wait_for_device() {
+    // If adbd restarts, we should wait the device to get offline first.
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
     const auto pattern = m_serial + "\tdevice";
     while (devices().find(pattern) == std::string::npos) {
         std::this_thread::sleep_for(std::chrono::microseconds(500));
