@@ -54,6 +54,7 @@ std::string devices() {
 
 class io_handle_impl : public io_handle {
   public:
+    io_handle_impl(asio::ip::tcp::socket socket);
     ~io_handle_impl() { close(); }
     void write(const std::string_view data) override;
     std::string read() override;
@@ -61,7 +62,6 @@ class io_handle_impl : public io_handle {
 
   private:
     friend class client_impl;
-    explicit io_handle_impl(asio::ip::tcp::socket socket);
 
     asio::ip::tcp::socket m_socket;
 };
@@ -86,6 +86,7 @@ void io_handle_impl::close() { m_socket.close(); }
 
 class client_impl : public client {
   public:
+    client_impl(const std::string_view serial);
     std::string connect() override;
     std::string disconnect() override;
     std::string version() override;
@@ -102,10 +103,8 @@ class client_impl : public client {
 
   private:
     friend class client;
-    explicit client_impl(const std::string_view serial);
 
     std::string m_serial;
-
     asio::io_context m_context;
     asio::ip::basic_endpoint<asio::ip::tcp> m_endpoint;
 
@@ -121,7 +120,7 @@ class client_impl : public client {
 };
 
 std::shared_ptr<client> client::create(const std::string_view serial) {
-    return std::make_shared<client>(new client_impl(serial));
+    return std::make_shared<client_impl>(serial);
 }
 
 client_impl::client_impl(const std::string_view serial) {
@@ -295,7 +294,7 @@ client_impl::interactive_shell(const std::string_view command) {
     const auto request = std::string("shell:") + command.data();
     send_host_request(socket, request);
 
-    return std::make_shared<io_handle>(new io_handle_impl(std::move(socket)));
+    return std::make_shared<io_handle_impl>(std::move(socket));
 }
 
 void client_impl::wait_for_device() {
