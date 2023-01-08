@@ -16,6 +16,14 @@ add_library(adb-lite STATIC src/protocol.cpp src/client.cpp)
 target_include_directories(adb-lite PRIVATE include/adb-lite)
 target_include_directories(adb-lite INTERFACE include)
 
+install(DIRECTORY include
+         DESTINATION .
+         FILES_MATCHING PATTERN "*.hpp")
+
+install(TARGETS adb-lite
+        PUBLIC_HEADER DESTINATION include
+        DESTINATION lib)
+
 if (BUILD_TEST)
   add_executable(adb-test examples/main.cpp)
   target_link_libraries(adb-test PRIVATE adb-lite)

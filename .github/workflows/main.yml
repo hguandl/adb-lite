@@ -1,0 +1,96 @@
+name: Build adb-lite
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-adb-lite:
+    strategy:
+      matrix:
+        os: [ubuntu, windows]
+        include:
+          - os: macos
+            arch: arm64
+          - os: macos
+            arch: x86_64
+
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.os }}-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup macOS Environment
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja
+
+      - name: Setup ccache
+        uses: Chocobo1/setup-ccache-action@v1
+        with:
+          windows_compile_environment: msvc
+
+      - name: Install Linux Packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake ninja-build
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        id: msvc-env
+        if: runner.os == 'Windows'
+
+      - name: Get specific version CMake, v3.24.3
+        if: runner.os == 'Windows'
+        uses: lukka/get-cmake@v3.24.3
+
+      - name: Setup package suffix
+        run: |
+          PKG_SUFFIX=${{ runner.os }}
+          [[ ${{ matrix.os }} = "macos" ]] && PKG_SUFFIX=$PKG_SUFFIX-${{ matrix.arch }}
+          echo "PKG_SUFFIX=${PKG_SUFFIX}" >> $GITHUB_ENV
+
+      - name: Setup MSVC environment
+        if: runner.os == 'Windows'
+        run: |
+          echo "CC=cl" >> $GITHUB_ENV
+          echo "CXX=cl" >> $GITHUB_ENV
+          echo "OpenCV=/lib" >> $GITHUB_ENV
+
+      - name: Configure adb-lite
+        run: |
+          cmake -S . -B build \
+            -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/adb-lite-${{ env.PKG_SUFFIX }}
+
+      - name: Extra configuration for Windows
+        if: runner.os == 'Windows'
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_CXX_COMPILER_LAUNCHER:FILEPATH="${{ env.ccache_symlinks_path }}"
+
+      - name: Extra configuration for macOS
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_OSX_ARCHITECTURES="${{ matrix.arch }}" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+
+      - name: Build adb-lite
+        run: |
+          cmake --build build --config RelWithDebInfo --target install --parallel ${PARALLEL_JOBS:-$(nproc --all)}
+
+      - name: Package adb-lite
+        run: |
+          tar -czvf adb-lite-${{ env.PKG_SUFFIX }}.tar.gz adb-lite-${{ env.PKG_SUFFIX }}
+
+      - name: Upload adb-lite
+        uses: actions/upload-artifact@v3
+        with:
+          name: adb-lite-${{ env.PKG_SUFFIX }}
+          path: adb-lite-${{ env.PKG_SUFFIX }}.tar.gz
