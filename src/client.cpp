@@ -52,7 +52,79 @@ std::string devices() {
     return devices(context, endpoint);
 }
 
-client::client(const std::string_view& serial) {
+class io_handle_impl : public io_handle {
+  public:
+    ~io_handle_impl() { close(); }
+    void write(const std::string_view& data) override;
+    std::string read() override;
+    void close() override;
+
+  private:
+    friend class client_impl;
+    explicit io_handle_impl(asio::ip::tcp::socket socket);
+
+    asio::ip::tcp::socket m_socket;
+};
+
+io_handle_impl::io_handle_impl(tcp::socket socket)
+    : m_socket(std::move(socket)) {
+    asio::socket_base::keep_alive option(true);
+    m_socket.set_option(option);
+}
+
+std::string io_handle_impl::read() {
+    std::array<char, 1024> buffer;
+    const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
+    return std::string(buffer.data(), bytes_read);
+}
+
+void io_handle_impl::write(const std::string_view& data) {
+    m_socket.write_some(asio::buffer(data));
+}
+
+void io_handle_impl::close() { m_socket.close(); }
+
+class client_impl : public client {
+  public:
+    std::string connect() override;
+    std::string disconnect() override;
+    std::string version() override;
+    std::string devices() override;
+    std::string shell(const std::string_view& command) override;
+    std::string exec(const std::string_view& command) override;
+    void push(const std::string_view& src, const std::string_view& dst,
+              int perm) override;
+    std::shared_ptr<io_handle>
+    interactive_shell(const std::string_view& command) override;
+    std::string root() override;
+    std::string unroot() override;
+    void wait_for_device() override;
+
+  private:
+    friend class client;
+    explicit client_impl(const std::string_view& serial);
+
+    std::string m_serial;
+
+    asio::io_context m_context;
+    asio::ip::basic_endpoint<asio::ip::tcp> m_endpoint;
+
+    void check_adb_availabilty();
+
+    /// Switch the connection to the device.
+    /**
+     * @param socket Opened adb connection.
+     * @note Should be used only by the client class.
+     * @note Local services (e.g. shell, push) can be requested after this.
+     */
+    void switch_to_device(asio::ip::tcp::socket& socket);
+};
+
+std::shared_ptr<client> client::create(const std::string_view& serial) {
+    return std::shared_ptr<client>(new client_impl(serial));
+}
+
+client_impl::client_impl(const std::string_view& serial) {
     m_serial = serial;
 
     tcp::resolver resolver(m_context);
@@ -60,7 +132,7 @@ client::client(const std::string_view& serial) {
     m_endpoint = endpoints->endpoint();
 }
 
-std::string client::connect() {
+std::string client_impl::connect() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -75,7 +147,7 @@ std::string client::connect() {
     return message;
 }
 
-std::string client::disconnect() {
+std::string client_impl::disconnect() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -89,11 +161,15 @@ std::string client::disconnect() {
     return message;
 }
 
-std::string client::version() { return adb::version(m_context, m_endpoint); }
+std::string client_impl::version() {
+    return adb::version(m_context, m_endpoint);
+}
 
-std::string client::devices() { return adb::devices(m_context, m_endpoint); }
+std::string client_impl::devices() {
+    return adb::devices(m_context, m_endpoint);
+}
 
-std::string client::shell(const std::string_view& command) {
+std::string client_impl::shell(const std::string_view& command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -110,7 +186,7 @@ std::string client::shell(const std::string_view& command) {
     return data;
 }
 
-std::string client::exec(const std::string_view& command) {
+std::string client_impl::exec(const std::string_view& command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -127,8 +203,8 @@ std::string client::exec(const std::string_view& command) {
     return data;
 }
 
-void client::push(const std::string_view& src, const std::string_view& dst,
-                  int perm) {
+void client_impl::push(const std::string_view& src, const std::string_view& dst,
+                       int perm) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -175,7 +251,7 @@ void client::push(const std::string_view& src, const std::string_view& dst,
     socket.close();
 }
 
-std::string client::root() {
+std::string client_impl::root() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -191,7 +267,7 @@ std::string client::root() {
     return message;
 }
 
-std::string client::unroot() {
+std::string client_impl::unroot() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -207,7 +283,8 @@ std::string client::unroot() {
     return message;
 }
 
-io_handle client::interactive_shell(const std::string_view& command) {
+std::shared_ptr<io_handle>
+client_impl::interactive_shell(const std::string_view& command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
@@ -218,40 +295,21 @@ io_handle client::interactive_shell(const std::string_view& command) {
     const auto request = std::string("shell:") + command.data();
     send_host_request(socket, request);
 
-    return io_handle(std::move(socket));
+    return std::shared_ptr<io_handle>(new io_handle_impl(std::move(socket)));
 }
 
-void client::wait_for_device() {
+void client_impl::wait_for_device() {
     const auto pattern = m_serial + "\tdevice";
     while (devices().find(pattern) == std::string::npos) {
         std::this_thread::sleep_for(std::chrono::microseconds(500));
     }
 }
 
-void client::check_adb_availabilty() { version(); }
+void client_impl::check_adb_availabilty() { version(); }
 
-void client::switch_to_device(tcp::socket& socket) {
+void client_impl::switch_to_device(tcp::socket& socket) {
     const auto request = "host:transport:" + m_serial;
     send_host_request(socket, request);
 }
-
-io_handle::io_handle(tcp::socket socket) : m_socket(std::move(socket)) {
-    asio::socket_base::keep_alive option(true);
-    m_socket.set_option(option);
-}
-
-io_handle::~io_handle() { close(); }
-
-std::string io_handle::read() {
-    std::array<char, 1024> buffer;
-    const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
-    return std::string(buffer.data(), bytes_read);
-}
-
-void io_handle::write(const std::string_view& data) {
-    m_socket.write_some(asio::buffer(data));
-}
-
-void io_handle::close() { m_socket.close(); }
 
 } // namespace adb

@@ -1,8 +1,7 @@
 #pragma once
 
+#include <string>
 #include <string_view>
-
-#include <asio/ip/tcp.hpp>
 
 namespace adb {
 
@@ -21,17 +20,16 @@ std::string version();
  */
 std::string devices();
 
+class io_handle_impl;
+
 /// Context for an interactive adb connection.
+/**
+ * @note Should be used only by the client class, after a shell request.
+ * @note The socket will be closed when the handle is destroyed.
+ */
 class io_handle {
   public:
-    /// Create an handle with an existing active connection.
-    /**
-     * @param socket Opened adb connection.
-     * @note Should be used only by the client class, after a shell request.
-     * @note The socket will be closed when the handle is destroyed.
-     */
-    io_handle(asio::ip::tcp::socket socket);
-    ~io_handle();
+    virtual ~io_handle() = default;
 
     /// Write data to the adb connection.
     /**
@@ -39,7 +37,7 @@ class io_handle {
      * @note Typically used to write stdin of a shell command.
      * @note The data should end with a newline.
      */
-    void write(const std::string_view& data);
+    virtual void write(const std::string_view& data) = 0;
 
     /// Read data from the adb connection.
     /**
@@ -47,14 +45,17 @@ class io_handle {
      * @note Typically used to read stdout of a shell command.
      * @note Function will be blocked until stdout produces more data.
      */
-    std::string read();
+    virtual std::string read() = 0;
 
     /// Close the adb connection.
-    void close();
+    virtual void close() = 0;
 
   private:
-    asio::ip::tcp::socket m_socket;
+    friend class io_handle_impl;
+    io_handle() = default;
 };
+
+class client_impl;
 
 /// A client for the Android Debug Bridge.
 class client {
@@ -65,7 +66,8 @@ class client {
      * @note If the serial is empty, the unique device will be used. If there
      * are multiple devices, an exception will be thrown.
      */
-    client(const std::string_view& serial);
+    static std::shared_ptr<client> create(const std::string_view& serial);
+    virtual ~client() = default;
 
     /// Connect to the device.
     /**
@@ -73,7 +75,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb connect <serial>`.
      */
-    std::string connect();
+    virtual std::string connect() = 0;
 
     /// Disconnect from the device.
     /**
@@ -81,7 +83,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb disconnect <serial>`.
      */
-    std::string disconnect();
+    virtual std::string disconnect() = 0;
 
     /// Retrieve the version of local adb server.
     /**
@@ -90,7 +92,7 @@ class client {
      * @note This function reuses the class member io_context, which is
      * thread-safe for the client.
      */
-    std::string version();
+    virtual std::string version() = 0;
 
     /// Retrieve the available Android devices.
     /**
@@ -100,7 +102,7 @@ class client {
      * @note This function reuses the class member io_context, which is
      * thread-safe for the client.
      */
-    std::string devices();
+    virtual std::string devices() = 0;
 
     /// Send an one-shot shell command to the device.
     /**
@@ -109,7 +111,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> shell <command>` without stdin.
      */
-    std::string shell(const std::string_view& command);
+    virtual std::string shell(const std::string_view& command) = 0;
 
     /// Send an one-shot shell command to the device, using raw PTY.
     /**
@@ -118,7 +120,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> exec-out <command>` without stdin.
      */
-    std::string exec(const std::string_view& command);
+    virtual std::string exec(const std::string_view& command) = 0;
 
     /// Send a file to the device.
     /**
@@ -128,8 +130,8 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> push <src> <dst>`.
      */
-    void push(const std::string_view& src, const std::string_view& dst,
-              int perm);
+    virtual void push(const std::string_view& src, const std::string_view& dst,
+                      int perm) = 0;
 
     /// Set the user of adbd to root on the device.
     /**
@@ -138,7 +140,7 @@ class client {
      * @note The device might be offline after this command. Remember to wait
      * for the restart.
      */
-    std::string root();
+    virtual std::string root() = 0;
 
     /// Set the user of adbd to non-root on the device.
     /**
@@ -147,7 +149,7 @@ class client {
      * @note The device might be offline after this command. Remember to wait
      * for the restart.
      */
-    std::string unroot();
+    virtual std::string unroot() = 0;
 
     /// Start an interactive shell session on the device.
     /**
@@ -156,29 +158,18 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> shell <command>` with stdin.
      */
-    io_handle interactive_shell(const std::string_view& command);
+    virtual std::shared_ptr<io_handle>
+    interactive_shell(const std::string_view& command) = 0;
 
     /// Wait for the device to be available.
     /**
      * @throw std::system_error if the server is not available.
      */
-    void wait_for_device();
+    virtual void wait_for_device() = 0;
 
   private:
-    std::string m_serial;
-
-    asio::io_context m_context;
-    asio::ip::basic_endpoint<asio::ip::tcp> m_endpoint;
-
-    void check_adb_availabilty();
-
-    /// Switch the connection to the device.
-    /**
-     * @param socket Opened adb connection.
-     * @note Should be used only by the client class.
-     * @note Local services (e.g. shell, push) can be requested after this.
-     */
-    void switch_to_device(asio::ip::tcp::socket& socket);
+    friend class client_impl;
+    client() = default;
 };
 
 } // namespace adb

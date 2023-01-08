@@ -7,16 +7,16 @@ int main() {
     std::cout << "adb host version: " << adb::version() << std::endl;
     std::cout << adb::devices() << std::endl;
 
-    auto client = adb::client("127.0.0.1:5555");
+    auto client = adb::client::create("127.0.0.1:5555");
 
-    std::cout << client.connect() << std::endl;
+    std::cout << client->connect() << std::endl;
 
-    std::cout << client.root() << std::endl;
-    client.wait_for_device();
+    std::cout << client->root() << std::endl;
+    client->wait_for_device();
 
-    std::cout << client.shell("ls -l /data/local/tmp") << std::endl;
+    auto handle = client->interactive_shell("ls -l /data/local/tmp");
 
-    std::string screencap = client.exec("screencap -p");
+    std::string screencap = client->exec("screencap -p");
     std::ofstream file("screenshot.png", std::ios::binary);
     file << screencap;
     file.close();
@@ -33,6 +33,6 @@ int main() {
     // minitouch.write("u 0\n");
     // minitouch.write("c\n");
 
-    std::cout << client.disconnect() << std::endl;
+    std::cout << client->disconnect() << std::endl;
     return 0;
 }
