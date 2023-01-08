@@ -51,8 +51,7 @@ class io_handle {
     /// Close the adb connection.
     virtual void close() = 0;
 
-  private:
-    friend class io_handle_impl;
+  protected:
     io_handle() = default;
 };
 
@@ -168,8 +167,7 @@ class client {
      */
     virtual void wait_for_device() = 0;
 
-  private:
-    friend class client_impl;
+  protected:
     client() = default;
 };
 
