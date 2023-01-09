@@ -8,7 +8,7 @@ if (MSVC)
   add_compile_options(/W4 /WX /MT)
   add_compile_options(-D_WIN32_WINNT=0x0601)
 else()
-  add_compile_options(-Wno-deprecated-declarations)
+  add_compile_options(-fPIC -Wno-deprecated-declarations)
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif (MSVC)
 
