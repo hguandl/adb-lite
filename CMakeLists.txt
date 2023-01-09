@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (MSVC)
-  add_compile_options(/W4 /WX)
+  add_compile_options(/W4 /WX /MT)
   add_compile_options(-D_WIN32_WINNT=0x0601)
 else()
   add_compile_options(-Wno-deprecated-declarations)
