@@ -134,7 +134,7 @@ class client_impl : public client {
     std::string devices() override;
     std::string shell(const std::string_view command) override;
     std::string exec(const std::string_view command) override;
-    void push(const std::string_view src, const std::string_view dst,
+    bool push(const std::string_view src, const std::string_view dst,
               int perm) override;
     std::shared_ptr<io_handle>
     interactive_shell(const std::string_view command) override;
@@ -242,7 +242,7 @@ std::string client_impl::exec(const std::string_view command) {
     return data;
 }
 
-void client_impl::push(const std::string_view src, const std::string_view dst,
+bool client_impl::push(const std::string_view src, const std::string_view dst,
                        int perm) {
     check_adb_availabilty();
 
@@ -282,12 +282,13 @@ void client_impl::push(const std::string_view src, const std::string_view dst,
     std::string result;
     uint32_t length;
     protocol::sync_response(socket, result, length);
+    socket.close();
 
     if (result != "OKAY") {
-        throw std::runtime_error("failed to push file");
+        return false;
     }
 
-    socket.close();
+    return true;
 }
 
 std::string client_impl::root() {

@@ -123,13 +123,14 @@ class client {
 
     /// Send a file to the device.
     /**
+     * @return true if the file is successfully sent.
      * @param src Path to the source file.
      * @param dst Path to the destination file.
      * @param perm Permission of the destination file.
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> push <src> <dst>`.
      */
-    virtual void push(const std::string_view src, const std::string_view dst,
+    virtual bool push(const std::string_view src, const std::string_view dst,
                       int perm) = 0;
 
     /// Set the user of adbd to root on the device.
