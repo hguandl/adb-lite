@@ -23,9 +23,7 @@ static inline std::string version(asio::io_context& context,
     const auto request = "host:version";
     send_host_request(socket, request);
 
-    auto message = protocol::host_message(socket);
-    socket.close();
-    return message;
+    return protocol::host_message(socket);
 }
 
 static inline std::string devices(asio::io_context& context,
@@ -36,9 +34,7 @@ static inline std::string devices(asio::io_context& context,
     const auto request = "host:devices";
     send_host_request(socket, request);
 
-    auto message = protocol::host_message(socket);
-    socket.close();
-    return message;
+    return protocol::host_message(socket);
 }
 
 std::string version() {
@@ -180,10 +176,7 @@ std::string client_impl::connect() {
     const auto request = "host:connect:" + m_serial;
     send_host_request(socket, request);
 
-    auto message = protocol::host_message(socket);
-    socket.close();
-
-    return message;
+    return protocol::host_message(socket);
 }
 
 std::string client_impl::disconnect() {
@@ -195,9 +188,7 @@ std::string client_impl::disconnect() {
     const auto request = "host:disconnect:" + m_serial;
     send_host_request(socket, request);
 
-    auto message = protocol::host_message(socket);
-    socket.close();
-    return message;
+    return protocol::host_message(socket);
 }
 
 std::string client_impl::version() {
@@ -219,10 +210,7 @@ std::string client_impl::shell(const std::string_view command) {
     const auto request = std::string("shell:") + command.data();
     send_host_request(socket, request);
 
-    const auto data = protocol::host_data(socket);
-
-    socket.close();
-    return data;
+    return protocol::host_data(socket);
 }
 
 std::string client_impl::exec(const std::string_view command) {
@@ -236,10 +224,7 @@ std::string client_impl::exec(const std::string_view command) {
     const auto request = std::string("exec:") + command.data();
     send_host_request(socket, request);
 
-    const auto data = protocol::host_data(socket);
-
-    socket.close();
-    return data;
+    return protocol::host_data(socket);
 }
 
 bool client_impl::push(const std::string_view src, const std::string_view dst,
@@ -282,8 +267,6 @@ bool client_impl::push(const std::string_view src, const std::string_view dst,
     std::string result;
     uint32_t length;
     protocol::sync_response(socket, result, length);
-    socket.close();
-
     if (result != "OKAY") {
         return false;
     }
@@ -302,9 +285,7 @@ std::string client_impl::root() {
     const auto request = "root:";
     send_host_request(socket, request);
 
-    auto message = protocol::host_data(socket);
-    socket.close();
-    return message;
+    return protocol::host_data(socket);
 }
 
 std::string client_impl::unroot() {
@@ -318,9 +299,7 @@ std::string client_impl::unroot() {
     const auto request = "unroot:";
     send_host_request(socket, request);
 
-    auto message = protocol::host_data(socket);
-    socket.close();
-    return message;
+    return protocol::host_data(socket);
 }
 
 std::shared_ptr<io_handle>

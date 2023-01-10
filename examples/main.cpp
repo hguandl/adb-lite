@@ -23,6 +23,9 @@ int main() {
     std::ofstream file("screenshot.png", std::ios::binary);
     file << screencap;
 
+    client->push("screenshot.png", "/data/local/tmp/screenshot.png", 0700);
+    std::cout << client->shell("ls -l /data/local/tmp") << std::endl;
+
     // Test minitouch
     // client->push("minitouch", "/data/local/tmp/minitouch", 0700);
 
