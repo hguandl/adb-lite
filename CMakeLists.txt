@@ -12,7 +12,7 @@ else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif (MSVC)
 
-add_library(adb-lite STATIC src/protocol.cpp src/client.cpp)
+add_library(adb-lite STATIC src/client.cpp src/error.cpp src/protocol.cpp)
 target_include_directories(adb-lite PRIVATE include/adb-lite)
 target_include_directories(adb-lite INTERFACE include)
 
@@ -32,7 +32,7 @@ endif (BUILD_TEST)
 ###### ASIO ######
 
 include(FetchContent)
-if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
   cmake_policy(SET CMP0135 NEW)
 endif()
 FetchContent_Declare(
@@ -44,3 +44,20 @@ FetchContent_MakeAvailable(asio)
 target_include_directories(adb-lite PUBLIC ${asio_SOURCE_DIR}/include)
 
 ###### END ASIO ######
+
+###### BEGIN expected ######
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.13")
+  cmake_policy(SET CMP0077 NEW)
+endif()
+
+FetchContent_Declare(
+  expected
+  URL https://github.com/TartanLlama/expected/archive/refs/tags/v1.0.0.tar.gz
+  URL_HASH SHA256=8f5124085a124113e75e3890b4e923e3a4de5b26a973b891b3deb40e19c03cee
+)
+set(EXPECTED_ENABLE_TESTS OFF)
+FetchContent_MakeAvailable(expected)
+target_include_directories(adb-lite PUBLIC ${expected_SOURCE_DIR}/include)
+
+###### END expected ######
