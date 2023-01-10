@@ -57,25 +57,67 @@ std::string devices() {
 
 class io_handle_impl : public io_handle {
   public:
-    io_handle_impl(asio::ip::tcp::socket socket);
+    io_handle_impl(std::unique_ptr<asio::io_context> context,
+                   tcp::socket socket);
     void write(const std::string_view data) override;
     std::string read(unsigned timeout = 0) override;
 
   private:
     friend class client_impl;
 
+    const std::unique_ptr<asio::io_context> m_context;
     asio::ip::tcp::socket m_socket;
 };
 
-io_handle_impl::io_handle_impl(tcp::socket socket)
-    : m_socket(std::move(socket)) {
+io_handle_impl::io_handle_impl(std::unique_ptr<asio::io_context> context,
+                               tcp::socket socket)
+    : m_context(std::move(context)), m_socket(std::move(socket)) {
     asio::socket_base::keep_alive option(true);
     m_socket.set_option(option);
 }
 
-std::string io_handle_impl::read(unsigned timeout __unused) {
+std::string io_handle_impl::read(unsigned timeout) {
     std::array<char, 1024> buffer;
-    const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
+
+    if (timeout == 0) {
+        const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
+        return std::string(buffer.data(), bytes_read);
+    }
+
+    std::error_code ec;
+    size_t bytes_read = 0;
+    asio::steady_timer timer(*m_context, std::chrono::seconds(timeout));
+
+    m_socket.async_read_some(
+        asio::buffer(buffer),
+        [&](const asio::error_code& error, size_t bytes_transferred) {
+            if (error) {
+                ec = error;
+                return;
+            }
+            bytes_read = bytes_transferred;
+            timer.cancel();
+        });
+
+    timer.async_wait([&](const asio::error_code& error) {
+        if (error) {
+            ec = error;
+            return;
+        }
+        m_socket.cancel(ec);
+    });
+
+    m_context->restart();
+    while (m_context->run_one()) {
+        if (ec == asio::error::eof) {
+            break;
+        } else if (ec == asio::error::operation_aborted) {
+            break;
+        } else if (ec) {
+            throw std::system_error(ec);
+        }
+    }
+
     return std::string(buffer.data(), bytes_read);
 }
 
@@ -284,7 +326,8 @@ std::shared_ptr<io_handle>
 client_impl::interactive_shell(const std::string_view command) {
     check_adb_availabilty();
 
-    tcp::socket socket(m_context);
+    auto context = std::make_unique<asio::io_context>();
+    tcp::socket socket(*context);
     asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
@@ -292,7 +335,8 @@ client_impl::interactive_shell(const std::string_view command) {
     const auto request = std::string("shell:") + command.data();
     send_host_request(socket, request);
 
-    return std::make_shared<io_handle_impl>(std::move(socket));
+    return std::make_shared<io_handle_impl>(std::move(context),
+                                            std::move(socket));
 }
 
 void client_impl::wait_for_device() {

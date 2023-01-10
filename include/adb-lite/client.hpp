@@ -44,10 +44,9 @@ class io_handle {
     /// Read data from the adb connection.
     /**
      * @param timeout Timeout in seconds. 0 means no timeout.
-     * @return Data read. Empty if the connection is closed.
+     * @return Data read. Empty if timeout or the connection is closed.
      * @throw std::runtime_error Thrown on socket failure.
      * @note Typically used to read stdout of a shell command.
-     * @note Function will be blocked until stdout produces more data.
      */
     virtual std::string read(unsigned timeout = 0) = 0;
 
