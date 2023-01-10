@@ -8,14 +8,15 @@
 #include "protocol.hpp"
 
 using asio::ip::tcp;
+using tcp_endpoints = tcp::resolver::results_type;
 
 using adb::protocol::send_host_request;
 using adb::protocol::send_sync_request;
 
 namespace adb {
 
-static std::string version(asio::io_context& context,
-                           const tcp::resolver::results_type& endpoints) {
+static inline std::string version(asio::io_context& context,
+                                  const tcp_endpoints& endpoints) {
     tcp::socket socket(context);
     asio::connect(socket, endpoints);
 
@@ -27,8 +28,8 @@ static std::string version(asio::io_context& context,
     return message;
 }
 
-static std::string devices(asio::io_context& context,
-                           const tcp::resolver::results_type& endpoints) {
+static inline std::string devices(asio::io_context& context,
+                                  const tcp_endpoints& endpoints) {
     tcp::socket socket(context);
     asio::connect(socket, endpoints);
 
@@ -104,7 +105,7 @@ class client_impl : public client {
 
     std::string m_serial;
     asio::io_context m_context;
-    asio::ip::tcp::resolver::results_type m_endpoints;
+    tcp_endpoints m_endpoints;
 
     void check_adb_availabilty();
 
