@@ -7,13 +7,25 @@ using asio::ip::tcp;
 
 namespace adb::protocol {
 
-std::string host_request(const std::string_view body) {
+/// Encoded the ADB host request.
+/**
+ * @param body Body of the request.
+ * @return Encoded request.
+ */
+static inline std::string host_request(const std::string_view body) {
     std::stringstream ss;
     ss << std::setfill('0') << std::setw(4) << std::hex << body.size() << body;
     return ss.str();
 }
 
-static bool host_response(tcp::socket& socket, std::string& failure) {
+/// Receive and check the response.
+/**
+ * @param socket Opened adb connection.
+ * @param failure Error message if the response is not OKAY.
+ * @return `true` if the response is OKAY, `false` otherwise.
+ * @throw std::runtime_error Thrown on socket failure
+ */
+static inline bool host_response(tcp::socket& socket, std::string& failure) {
     std::array<char, 4> header;
     socket.read_some(asio::buffer(header));
     const auto result = std::string_view(header.data(), 4);

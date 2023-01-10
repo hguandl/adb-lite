@@ -55,10 +55,8 @@ std::string devices() {
 class io_handle_impl : public io_handle {
   public:
     io_handle_impl(asio::ip::tcp::socket socket);
-    ~io_handle_impl() { close(); }
     void write(const std::string_view data) override;
-    std::string read() override;
-    void close() override;
+    std::string read(unsigned timeout = 0) override;
 
   private:
     friend class client_impl;
@@ -72,7 +70,7 @@ io_handle_impl::io_handle_impl(tcp::socket socket)
     m_socket.set_option(option);
 }
 
-std::string io_handle_impl::read() {
+std::string io_handle_impl::read(unsigned timeout __unused) {
     std::array<char, 1024> buffer;
     const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
     return std::string(buffer.data(), bytes_read);
@@ -81,8 +79,6 @@ std::string io_handle_impl::read() {
 void io_handle_impl::write(const std::string_view data) {
     m_socket.write_some(asio::buffer(data));
 }
-
-void io_handle_impl::close() { m_socket.close(); }
 
 class client_impl : public client {
   public:

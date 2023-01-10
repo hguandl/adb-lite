@@ -35,6 +35,7 @@ class io_handle {
     /// Write data to the adb connection.
     /**
      * @param data Data to write.
+     * @throw std::runtime_error Thrown on socket failure.
      * @note Typically used to write stdin of a shell command.
      * @note The data should end with a newline.
      */
@@ -42,14 +43,13 @@ class io_handle {
 
     /// Read data from the adb connection.
     /**
-     * @return Data read.
+     * @param timeout Timeout in seconds. 0 means no timeout.
+     * @return Data read. Empty if the connection is closed.
+     * @throw std::runtime_error Thrown on socket failure.
      * @note Typically used to read stdout of a shell command.
      * @note Function will be blocked until stdout produces more data.
      */
-    virtual std::string read() = 0;
-
-    /// Close the adb connection.
-    virtual void close() = 0;
+    virtual std::string read(unsigned timeout = 0) = 0;
 
   protected:
     io_handle() = default;
