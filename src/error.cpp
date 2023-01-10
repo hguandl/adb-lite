@@ -27,11 +27,12 @@ class adb_errors_category : public std::error_category {
 
     adb_errors_category() = default;
 
-    std::map<unsigned long, std::string> m_messages;
+    std::map<int, std::string> m_messages;
 
   public:
-    unsigned long add_dynamic_error(std::string_view message) {
-        const auto key = std::hash<std::string_view>()(message);
+    int add_dynamic_error(std::string_view message) {
+        const auto hash = std::hash<std::string_view>()(message);
+        const auto key = static_cast<int>(hash);
         if (m_messages.find(key) == m_messages.end()) {
             m_messages[key] = std::string(message);
         }
