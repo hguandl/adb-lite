@@ -2,6 +2,8 @@
 #include <iostream>
 #include <thread>
 
+#include <asio.hpp>
+
 #include "client.hpp"
 #include "protocol.hpp"
 
@@ -12,9 +14,10 @@ using adb::protocol::send_sync_request;
 
 namespace adb {
 
-static std::string version(asio::io_context& context, tcp::endpoint& endpoint) {
+static std::string version(asio::io_context& context,
+                           const tcp::resolver::results_type& endpoints) {
     tcp::socket socket(context);
-    socket.connect(endpoint);
+    asio::connect(socket, endpoints);
 
     const auto request = "host:version";
     send_host_request(socket, request);
@@ -24,11 +27,10 @@ static std::string version(asio::io_context& context, tcp::endpoint& endpoint) {
     return message;
 }
 
-static std::string devices(asio::io_context& context, tcp::endpoint& endpoint) {
-    version(context, endpoint);
-
+static std::string devices(asio::io_context& context,
+                           const tcp::resolver::results_type& endpoints) {
     tcp::socket socket(context);
-    socket.connect(endpoint);
+    asio::connect(socket, endpoints);
 
     const auto request = "host:devices";
     send_host_request(socket, request);
@@ -41,15 +43,15 @@ static std::string devices(asio::io_context& context, tcp::endpoint& endpoint) {
 std::string version() {
     asio::io_context context;
     tcp::resolver resolver(context);
-    auto endpoint = resolver.resolve("127.0.0.1", "5037")->endpoint();
-    return version(context, endpoint);
+    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
+    return version(context, endpoints);
 }
 
 std::string devices() {
     asio::io_context context;
     tcp::resolver resolver(context);
-    auto endpoint = resolver.resolve("127.0.0.1", "5037")->endpoint();
-    return devices(context, endpoint);
+    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
+    return devices(context, endpoints);
 }
 
 class io_handle_impl : public io_handle {
@@ -102,7 +104,7 @@ class client_impl : public client {
 
     std::string m_serial;
     asio::io_context m_context;
-    asio::ip::basic_endpoint<asio::ip::tcp> m_endpoint;
+    asio::ip::tcp::resolver::results_type m_endpoints;
 
     void check_adb_availabilty();
 
@@ -123,15 +125,14 @@ client_impl::client_impl(const std::string_view serial) {
     m_serial = serial;
 
     tcp::resolver resolver(m_context);
-    auto endpoints = resolver.resolve("127.0.0.1", "5037");
-    m_endpoint = endpoints->endpoint();
+    m_endpoints = resolver.resolve("127.0.0.1", "5037");
 }
 
 std::string client_impl::connect() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     const auto request = "host:connect:" + m_serial;
     send_host_request(socket, request);
@@ -146,7 +147,7 @@ std::string client_impl::disconnect() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     const auto request = "host:disconnect:" + m_serial;
     send_host_request(socket, request);
@@ -157,18 +158,18 @@ std::string client_impl::disconnect() {
 }
 
 std::string client_impl::version() {
-    return adb::version(m_context, m_endpoint);
+    return adb::version(m_context, m_endpoints);
 }
 
 std::string client_impl::devices() {
-    return adb::devices(m_context, m_endpoint);
+    return adb::devices(m_context, m_endpoints);
 }
 
 std::string client_impl::shell(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
@@ -185,7 +186,7 @@ std::string client_impl::exec(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
@@ -203,7 +204,7 @@ void client_impl::push(const std::string_view src, const std::string_view dst,
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
@@ -250,7 +251,7 @@ std::string client_impl::root() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
@@ -266,7 +267,7 @@ std::string client_impl::unroot() {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
@@ -283,7 +284,7 @@ client_impl::interactive_shell(const std::string_view command) {
     check_adb_availabilty();
 
     tcp::socket socket(m_context);
-    socket.connect(m_endpoint);
+    asio::connect(socket, m_endpoints);
 
     switch_to_device(socket);
 
