@@ -21,6 +21,13 @@ std::string version();
  */
 std::string devices();
 
+/// Kill the adb server if it is running.
+/**
+ * @throw std::system_error if the server is not running.
+ * @note Equivalent to `adb kill-server`.
+ */
+void kill_server();
+
 class io_handle_impl;
 
 /// Context for an interactive adb connection.

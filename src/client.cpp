@@ -51,6 +51,18 @@ std::string devices() {
     return devices(context, endpoints);
 }
 
+void kill_server() {
+    asio::io_context context;
+    tcp::resolver resolver(context);
+    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
+
+    tcp::socket socket(context);
+    asio::connect(socket, endpoints);
+
+    const auto request = "host:kill";
+    send_host_request(socket, request);
+}
+
 class io_handle_impl : public io_handle {
   public:
     io_handle_impl(std::unique_ptr<asio::io_context> context,
