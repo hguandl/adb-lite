@@ -39,10 +39,10 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 FetchContent_Declare(
   asio
-  URL https://sourceforge.net/projects/asio/files/asio/1.24.0%20%28Stable%29/asio-1.24.0.tar.bz2
-  URL_HASH SHA256=8976812c24a118600f6fcf071a20606630a69afe4c0abee3b0dea528e682c585
+  GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+  GIT_TAG        asio-1-24-0
 )
 FetchContent_MakeAvailable(asio)
-target_include_directories(adb-lite PUBLIC ${asio_SOURCE_DIR}/include)
+target_include_directories(adb-lite PUBLIC ${asio_SOURCE_DIR}/asio/include)
 
 ###### END ASIO ######
