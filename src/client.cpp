@@ -145,8 +145,6 @@ class client_impl : public client {
     asio::io_context m_context;
     tcp_endpoints m_endpoints;
 
-    void check_adb_availabilty();
-
     /// Switch the connection to the device.
     /**
      * @param socket Opened adb connection.
@@ -168,8 +166,6 @@ client_impl::client_impl(const std::string_view serial) {
 }
 
 std::string client_impl::connect() {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -180,8 +176,6 @@ std::string client_impl::connect() {
 }
 
 std::string client_impl::disconnect() {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -200,8 +194,6 @@ std::string client_impl::devices() {
 }
 
 std::string client_impl::shell(const std::string_view command) {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -214,8 +206,6 @@ std::string client_impl::shell(const std::string_view command) {
 }
 
 std::string client_impl::exec(const std::string_view command) {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -229,8 +219,6 @@ std::string client_impl::exec(const std::string_view command) {
 
 bool client_impl::push(const std::string_view src, const std::string_view dst,
                        int perm) {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -275,8 +263,6 @@ bool client_impl::push(const std::string_view src, const std::string_view dst,
 }
 
 std::string client_impl::root() {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -289,8 +275,6 @@ std::string client_impl::root() {
 }
 
 std::string client_impl::unroot() {
-    check_adb_availabilty();
-
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
 
@@ -304,8 +288,6 @@ std::string client_impl::unroot() {
 
 std::shared_ptr<io_handle>
 client_impl::interactive_shell(const std::string_view command) {
-    check_adb_availabilty();
-
     auto context = std::make_unique<asio::io_context>();
     tcp::socket socket(*context);
     asio::connect(socket, m_endpoints);
@@ -328,8 +310,6 @@ void client_impl::wait_for_device() {
         std::this_thread::sleep_for(std::chrono::microseconds(500));
     }
 }
-
-void client_impl::check_adb_availabilty() { version(); }
 
 void client_impl::switch_to_device(tcp::socket& socket) {
     const auto request = "host:transport:" + m_serial;
