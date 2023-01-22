@@ -142,7 +142,7 @@ class client_impl : public client {
     std::string devices() override;
     std::string shell(const std::string_view command) override;
     std::string exec(const std::string_view command) override;
-    bool push(const std::string_view src, const std::string_view dst,
+    bool push(const std::string& src, const std::string& dst,
               int perm) override;
     std::shared_ptr<io_handle>
     interactive_shell(const std::string_view command) override;
@@ -229,7 +229,7 @@ std::string client_impl::exec(const std::string_view command) {
     return protocol::host_data(socket);
 }
 
-bool client_impl::push(const std::string_view src, const std::string_view dst,
+bool client_impl::push(const std::string& src, const std::string& dst,
                        int perm) {
     tcp::socket socket(m_context);
     asio::connect(socket, m_endpoints);
@@ -241,12 +241,12 @@ bool client_impl::push(const std::string_view src, const std::string_view dst,
     send_host_request(socket, sync);
 
     // SEND request: destination, permissions
-    const auto send_request = std::string(dst) + "," + std::to_string(perm);
+    const auto send_request = dst + "," + std::to_string(perm);
     const auto request_size = static_cast<uint32_t>(send_request.size());
     send_sync_request(socket, "SEND", request_size, send_request.data());
 
     // DATA request: file data trunk, trunk size
-    std::ifstream file(src.data(), std::ios::binary);
+    std::ifstream file(src.c_str(), std::ios::binary);
     const auto buf_size = 64000;
     std::array<char, buf_size> buffer;
     while (!file.eof()) {

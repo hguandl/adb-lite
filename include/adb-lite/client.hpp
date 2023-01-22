@@ -137,7 +137,7 @@ class client {
      * @throw std::system_error if the server is not available.
      * @note Equivalent to `adb -s <serial> push <src> <dst>`.
      */
-    virtual bool push(const std::string_view src, const std::string_view dst,
+    virtual bool push(const std::string& src, const std::string& dst,
                       int perm) = 0;
 
     /// Set the user of adbd to root on the device.
