@@ -14,7 +14,7 @@ endif (MSVC)
 
 add_compile_options(-DASIO_STANDALONE -DASIO_NO_DEPRECATED)
 
-add_library(adb-lite STATIC src/protocol.cpp src/client.cpp)
+add_library(adb-lite STATIC src/protocol.cpp src/client.cpp src/io_handle.cpp)
 target_include_directories(adb-lite PRIVATE include/adb-lite)
 target_include_directories(adb-lite INTERFACE include)
 

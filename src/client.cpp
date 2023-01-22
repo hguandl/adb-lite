@@ -4,7 +4,8 @@
 
 #include <asio.hpp>
 
-#include "client.hpp"
+#include "client_impl.hpp"
+#include "io_handle_impl.hpp"
 #include "protocol.hpp"
 
 using asio::ip::tcp;
@@ -62,109 +63,6 @@ void kill_server() {
     const auto request = "host:kill";
     send_host_request(socket, request);
 }
-
-class io_handle_impl : public io_handle {
-  public:
-    io_handle_impl(std::unique_ptr<asio::io_context> context,
-                   tcp::socket socket);
-    void write(const std::string_view data) override;
-    std::string read(unsigned timeout = 0) override;
-
-  private:
-    friend class client_impl;
-
-    const std::unique_ptr<asio::io_context> m_context;
-    asio::ip::tcp::socket m_socket;
-};
-
-io_handle_impl::io_handle_impl(std::unique_ptr<asio::io_context> context,
-                               tcp::socket socket)
-    : m_context(std::move(context)), m_socket(std::move(socket)) {
-    asio::socket_base::keep_alive option(true);
-    m_socket.set_option(option);
-}
-
-std::string io_handle_impl::read(unsigned timeout) {
-    std::array<char, 1024> buffer;
-
-    if (timeout == 0) {
-        const auto bytes_read = m_socket.read_some(asio::buffer(buffer));
-        return std::string(buffer.data(), bytes_read);
-    }
-
-    std::error_code ec;
-    size_t bytes_read = 0;
-    asio::steady_timer timer(*m_context, std::chrono::seconds(timeout));
-
-    m_socket.async_read_some(
-        asio::buffer(buffer),
-        [&](const asio::error_code& error, size_t bytes_transferred) {
-            if (error) {
-                ec = error;
-                return;
-            }
-            bytes_read = bytes_transferred;
-            timer.cancel();
-        });
-
-    timer.async_wait([&](const asio::error_code& error) {
-        if (error) {
-            ec = error;
-            return;
-        }
-        m_socket.cancel(ec);
-    });
-
-    m_context->restart();
-    while (m_context->run_one()) {
-        if (ec == asio::error::eof) {
-            break;
-        } else if (ec == asio::error::operation_aborted) {
-            break;
-        } else if (ec) {
-            throw std::system_error(ec);
-        }
-    }
-
-    return std::string(buffer.data(), bytes_read);
-}
-
-void io_handle_impl::write(const std::string_view data) {
-    m_socket.write_some(asio::buffer(data));
-}
-
-class client_impl : public client {
-  public:
-    client_impl(const std::string_view serial);
-    std::string connect() override;
-    std::string disconnect() override;
-    std::string version() override;
-    std::string devices() override;
-    std::string shell(const std::string_view command) override;
-    std::string exec(const std::string_view command) override;
-    bool push(const std::string& src, const std::string& dst,
-              int perm) override;
-    std::shared_ptr<io_handle>
-    interactive_shell(const std::string_view command) override;
-    std::string root() override;
-    std::string unroot() override;
-    void wait_for_device() override;
-
-  private:
-    friend class client;
-
-    std::string m_serial;
-    asio::io_context m_context;
-    tcp_endpoints m_endpoints;
-
-    /// Switch the connection to the device.
-    /**
-     * @param socket Opened adb connection.
-     * @note Should be used only by the client class.
-     * @note Local services (e.g. shell, push) can be requested after this.
-     */
-    void switch_to_device(asio::ip::tcp::socket& socket);
-};
 
 std::shared_ptr<client> client::create(const std::string_view serial) {
     return std::make_shared<client_impl>(serial);
