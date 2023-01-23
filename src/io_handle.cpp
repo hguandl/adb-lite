@@ -1,10 +1,9 @@
+#include <future>
+
 #include "io_handle_impl.hpp"
 
-using asio::ip::tcp;
-
-adb::io_handle_impl::io_handle_impl(std::unique_ptr<asio::io_context> context,
-                                    tcp::socket socket)
-    : m_context(std::move(context)), m_socket(std::move(socket)) {
+adb::io_handle_impl::io_handle_impl(protocol::async_handle&& handle)
+    : m_socket(std::move(handle.m_socket)) {
     asio::socket_base::keep_alive option(true);
     m_socket.set_option(option);
 }
@@ -19,36 +18,23 @@ std::string adb::io_handle_impl::read(unsigned timeout) {
 
     std::error_code ec;
     size_t bytes_read = 0;
-    asio::steady_timer timer(*m_context, std::chrono::seconds(timeout));
+    std::promise<void> promise;
 
-    m_socket.async_read_some(
-        asio::buffer(buffer),
-        [&](const asio::error_code& error, size_t bytes_transferred) {
-            if (error) {
-                ec = error;
-                return;
-            }
-            bytes_read = bytes_transferred;
-            timer.cancel();
-        });
-
-    timer.async_wait([&](const asio::error_code& error) {
-        if (error) {
-            ec = error;
+    const auto buffers = asio::buffer(buffer);
+    m_socket.async_read_some(buffers, [&](const auto& error, auto size) {
+        if (error == asio::error::operation_aborted) {
             return;
         }
-        m_socket.cancel(ec);
+
+        ec = error;
+        bytes_read = size;
+        promise.set_value();
     });
 
-    m_context->restart();
-    while (m_context->run_one()) {
-        if (ec == asio::error::eof) {
-            break;
-        } else if (ec == asio::error::operation_aborted) {
-            break;
-        } else if (ec) {
-            throw std::system_error(ec);
-        }
+    auto future = promise.get_future();
+    auto status = future.wait_for(std::chrono::milliseconds(timeout));
+    if (status == std::future_status::timeout) {
+        m_socket.cancel();
     }
 
     return std::string(buffer.data(), bytes_read);

@@ -27,7 +27,6 @@ class io_handle {
     /**
      * @param timeout Timeout in seconds. 0 means no timeout.
      * @return Data read. Empty if timeout or the connection is closed.
-     * @throw std::runtime_error Thrown on socket failure.
      * @note Typically used to read stdout of a shell command.
      */
     virtual std::string read(unsigned timeout = 0) = 0;

@@ -3,20 +3,20 @@
 #include <asio/ip/tcp.hpp>
 
 #include "io_handle.hpp"
+#include "protocol.hpp"
 
 namespace adb {
 
+/// Pimpl class for io_handle.
 class io_handle_impl : public io_handle {
   public:
-    io_handle_impl(std::unique_ptr<asio::io_context> context,
-                   asio::ip::tcp::socket socket);
+    io_handle_impl(protocol::async_handle&& handle);
+
     void write(const std::string_view data) override;
     std::string read(unsigned timeout = 0) override;
 
   private:
-    friend class client_impl;
-
-    const std::unique_ptr<asio::io_context> m_context;
+    /// TCP connection to adbd.
     asio::ip::tcp::socket m_socket;
 };
 

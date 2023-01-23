@@ -1,229 +1,213 @@
-#include <fstream>
-#include <iostream>
-#include <thread>
-
-#include <asio.hpp>
-
 #include "client_impl.hpp"
 #include "io_handle_impl.hpp"
-#include "protocol.hpp"
-
-using asio::ip::tcp;
-using tcp_endpoints = tcp::resolver::results_type;
-
-using adb::protocol::send_host_request;
-using adb::protocol::send_sync_request;
 
 namespace adb {
 
-static inline std::string version(asio::io_context& context,
-                                  const tcp_endpoints& endpoints) {
-    tcp::socket socket(context);
-    asio::connect(socket, endpoints);
-
+std::string version(std::error_code& ec, const int64_t timeout) {
+    standalone_handle handle;
     const auto request = "host:version";
-    send_host_request(socket, request);
-
-    return protocol::host_message(socket);
+    return handle.timed_host_request(request, true, ec, timeout);
 }
 
-static inline std::string devices(asio::io_context& context,
-                                  const tcp_endpoints& endpoints) {
-    tcp::socket socket(context);
-    asio::connect(socket, endpoints);
-
+std::string devices(std::error_code& ec, const int64_t timeout) {
+    standalone_handle handle;
     const auto request = "host:devices";
-    send_host_request(socket, request);
-
-    return protocol::host_message(socket);
+    return handle.timed_host_request(request, true, ec, timeout);
 }
 
-std::string version() {
-    asio::io_context context;
-    tcp::resolver resolver(context);
-    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
-    return version(context, endpoints);
-}
-
-std::string devices() {
-    asio::io_context context;
-    tcp::resolver resolver(context);
-    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
-    return devices(context, endpoints);
-}
-
-void kill_server() {
-    asio::io_context context;
-    tcp::resolver resolver(context);
-    const auto endpoints = resolver.resolve("127.0.0.1", "5037");
-
-    tcp::socket socket(context);
-    asio::connect(socket, endpoints);
-
+void kill_server(std::error_code& ec, const int64_t timeout) {
+    standalone_handle handle;
     const auto request = "host:kill";
-    send_host_request(socket, request);
+    handle.timed_host_request(request, false, ec, timeout);
 }
 
 std::shared_ptr<client> client::create(const std::string_view serial) {
     return std::make_shared<client_impl>(serial);
 }
 
-client_impl::client_impl(const std::string_view serial) {
-    m_serial = serial;
-
-    tcp::resolver resolver(m_context);
-    m_endpoints = resolver.resolve("127.0.0.1", "5037");
-}
-
-std::string client_impl::connect() {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
+std::string client_impl::connect(std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
     const auto request = "host:connect:" + m_serial;
-    send_host_request(socket, request);
-
-    return protocol::host_message(socket);
+    return handle.timed_host_request(request, true, ec, timeout);
 }
 
-std::string client_impl::disconnect() {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
+std::string client_impl::disconnect(std::error_code& ec,
+                                    const int64_t timeout) {
+    client_handle handle(m_context);
     const auto request = "host:disconnect:" + m_serial;
-    send_host_request(socket, request);
-
-    return protocol::host_message(socket);
+    return handle.timed_host_request(request, true, ec, timeout);
 }
 
-std::string client_impl::version() {
-    return adb::version(m_context, m_endpoints);
-}
-
-std::string client_impl::devices() {
-    return adb::devices(m_context, m_endpoints);
-}
-
-std::string client_impl::shell(const std::string_view command) {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
-    switch_to_device(socket);
-
+std::string client_impl::shell(const std::string_view command,
+                               std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
     const auto request = std::string("shell:") + command.data();
-    send_host_request(socket, request);
-
-    return protocol::host_data(socket);
+    return handle.timed_device_request(m_serial, request, ec, timeout);
 }
 
-std::string client_impl::exec(const std::string_view command) {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
-    switch_to_device(socket);
-
+std::string client_impl::exec(const std::string_view command,
+                              std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
     const auto request = std::string("exec:") + command.data();
-    send_host_request(socket, request);
-
-    return protocol::host_data(socket);
+    return handle.timed_device_request(m_serial, request, ec, timeout);
 }
 
-bool client_impl::push(const std::string& src, const std::string& dst,
-                       int perm) {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
+bool client_impl::push(const std::filesystem::path& src, const std::string& dst,
+                       int perm, std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
 
-    switch_to_device(socket);
+    static constexpr auto now_ts = [] {
+        using namespace std::chrono;
+        const auto now = system_clock::now().time_since_epoch();
+        const auto ts = duration_cast<seconds>(now).count();
+        return static_cast<uint32_t>(ts);
+    };
 
-    // Switch to sync mode
-    const auto sync = "sync:";
-    send_host_request(socket, sync);
+    const auto send_req = dst + "," + std::to_string(perm);
+    const auto req_size = static_cast<uint32_t>(send_req.size());
 
-    // SEND request: destination, permissions
-    const auto send_request = dst + "," + std::to_string(perm);
-    const auto request_size = static_cast<uint32_t>(send_request.size());
-    send_sync_request(socket, "SEND", request_size, send_request.data());
+    handle.connect_device(m_serial, [&] {
+        // Switch to sync mode
+        const auto request = "sync:";
+        handle.host_request(request, [&] {
+            // SEND request: destination, permissions
+            handle.sync_request("SEND", req_size, send_req.data(), [&] {
+                handle.sync_send_file(src, [&] {
+                    // DONE request: timestamp
+                    handle.sync_request("DONE", now_ts(), nullptr, [&] {
+                        handle.sync_response([&] { handle.finish(); });
+                    });
+                });
+            });
+        });
+    });
 
-    // DATA request: file data trunk, trunk size
-    std::ifstream file(src.c_str(), std::ios::binary);
-    const auto buf_size = 64000;
-    std::array<char, buf_size> buffer;
-    while (!file.eof()) {
-        file.read(buffer.data(), buf_size);
-        const auto bytes_read = static_cast<uint32_t>(file.gcount());
-        send_sync_request(socket, "DATA", bytes_read, buffer.data());
-    }
-    file.close();
+    handle.run(timeout);
 
-    // DONE request: timestamp
-    const auto now = std::chrono::system_clock::now().time_since_epoch();
-    const auto timestamp =
-        std::chrono::duration_cast<std::chrono::seconds>(now).count();
-    const auto done_request =
-        protocol::sync_request("DONE", static_cast<uint32_t>(timestamp));
-    socket.write_some(asio::buffer(done_request));
-
-    std::string result;
-    uint32_t length;
-    protocol::sync_response(socket, result, length);
-    if (result != "OKAY") {
-        return false;
-    }
-
-    return true;
+    ec = handle.error();
+    return handle.value() == "OKAY";
 }
 
-std::string client_impl::root() {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
-    switch_to_device(socket);
-
-    const auto request = "root:";
-    send_host_request(socket, request);
-
-    return protocol::host_data(socket);
+std::string client_impl::root(std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
+    return handle.timed_device_request(m_serial, "root:", ec, timeout);
 }
 
-std::string client_impl::unroot() {
-    tcp::socket socket(m_context);
-    asio::connect(socket, m_endpoints);
-
-    switch_to_device(socket);
-
-    const auto request = "unroot:";
-    send_host_request(socket, request);
-
-    return protocol::host_data(socket);
+std::string client_impl::unroot(std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
+    return handle.timed_device_request(m_serial, "unroot:", ec, timeout);
 }
 
 std::shared_ptr<io_handle>
-client_impl::interactive_shell(const std::string_view command) {
-    auto context = std::make_unique<asio::io_context>();
-    tcp::socket socket(*context);
-    asio::connect(socket, m_endpoints);
+client_impl::interactive_shell(const std::string_view command,
+                               std::error_code& ec, const int64_t timeout) {
+    client_handle handle(m_context);
 
-    switch_to_device(socket);
+    handle.connect_device(m_serial, [=, &handle] {
+        const auto request = std::string("shell:") + command.data();
+        handle.host_request(request, [&handle] { handle.finish(); });
+    });
 
-    const auto request = std::string("shell:") + command.data();
-    send_host_request(socket, request);
+    handle.run(timeout);
 
-    return std::make_shared<io_handle_impl>(std::move(context),
-                                            std::move(socket));
+    ec = handle.error();
+    return std::make_shared<io_handle_impl>(std::move(handle));
 }
 
-void client_impl::wait_for_device() {
+void client_impl::start() {
+    m_thread = std::thread([this] {
+        auto worker = asio::make_work_guard(m_context);
+        m_context.restart();
+        m_context.run();
+    });
+}
+
+void client_impl::stop() {
+    m_context.stop();
+    if (m_thread.joinable()) {
+        m_thread.join();
+    }
+}
+
+void client_impl::wait_for_device(std::error_code& ec, const int64_t timeout) {
     // If adbd restarts, we should wait the device to get offline first.
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     const auto pattern = m_serial + "\tdevice";
-    while (devices().find(pattern) == std::string::npos) {
+    auto devices_str = devices(ec, timeout);
+    while (devices_str.find(pattern) == std::string::npos) {
+        if (ec) {
+            return;
+        }
         std::this_thread::sleep_for(std::chrono::microseconds(500));
+        devices_str = devices(ec, timeout);
     }
 }
 
-void client_impl::switch_to_device(tcp::socket& socket) {
-    const auto request = "host:transport:" + m_serial;
-    send_host_request(socket, request);
+client_handle::client_handle(asio::io_context& context)
+    : async_handle(context) {}
+
+void client_handle::oneshot_request(const std::string_view request,
+                                    const bool bounded,
+                                    const callback_t&& callback) {
+    host_request(request, [=, callback = std::move(callback)] {
+        if (bounded) {
+            host_message(std::move(callback));
+        } else {
+            host_data(std::move(callback));
+        }
+    });
+}
+
+void client_handle::connect_device(const std::string_view serial,
+                                   const callback_t&& callback) {
+    connect([=] {
+        const auto request = "host:transport:" + std::string(serial);
+        host_request(request, std::move(callback));
+    });
+}
+
+std::string client_handle::timed_host_request(const std::string_view request,
+                                              const bool bounded,
+                                              std::error_code& ec,
+                                              const int64_t timeout) {
+    connect([=] { oneshot_request(request, bounded, [=] { finish(); }); });
+
+    run(timeout);
+
+    ec = error();
+    return value();
+}
+
+std::string client_handle::timed_device_request(const std::string_view serial,
+                                                const std::string_view request,
+                                                std::error_code& ec,
+                                                const int64_t timeout) {
+    connect_device(serial,
+                   [=] { oneshot_request(request, false, [=] { finish(); }); });
+
+    run(timeout);
+
+    ec = error();
+    return value();
+}
+
+std::string
+standalone_handle::timed_host_request(const std::string_view request,
+                                      const bool bounded, std::error_code& ec,
+                                      const int64_t timeout) {
+    asio::steady_timer timer(m_context, std::chrono::milliseconds(timeout));
+
+    m_handle.connect([&] {
+        m_handle.oneshot_request(request, bounded, [&] { timer.cancel(); });
+    });
+
+    timer.async_wait([=](auto) { m_context.stop(); });
+
+    m_context.run();
+
+    ec = m_handle.error();
+    return m_handle.value();
 }
 
 } // namespace adb

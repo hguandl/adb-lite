@@ -43,6 +43,6 @@ FetchContent_Declare(
   GIT_TAG        asio-1-24-0
 )
 FetchContent_MakeAvailable(asio)
-target_include_directories(adb-lite PUBLIC ${asio_SOURCE_DIR}/asio/include)
+target_include_directories(adb-lite PRIVATE ${asio_SOURCE_DIR}/asio/include)
 
 ###### END ASIO ######
