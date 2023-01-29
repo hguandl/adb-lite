@@ -150,7 +150,7 @@ client_handle::client_handle(asio::io_context& context)
 void client_handle::oneshot_request(const std::string_view request,
                                     const bool bounded,
                                     const callback_t&& callback) {
-    host_request(request, [=, callback = std::move(callback)] {
+    host_request(request, [=, this, callback = std::move(callback)] {
         if (bounded) {
             host_message(std::move(callback));
         } else {
@@ -161,7 +161,7 @@ void client_handle::oneshot_request(const std::string_view request,
 
 void client_handle::connect_device(const std::string_view serial,
                                    const callback_t&& callback) {
-    connect([=] {
+    connect([=, this] {
         const auto request = "host:transport:" + std::string(serial);
         host_request(request, std::move(callback));
     });
@@ -171,7 +171,8 @@ std::string client_handle::timed_host_request(const std::string_view request,
                                               const bool bounded,
                                               std::error_code& ec,
                                               const int64_t timeout) {
-    connect([=] { oneshot_request(request, bounded, [=] { finish(); }); });
+    connect(
+        [=, this] { oneshot_request(request, bounded, [this] { finish(); }); });
 
     run(timeout);
 
@@ -183,8 +184,9 @@ std::string client_handle::timed_device_request(const std::string_view serial,
                                                 const std::string_view request,
                                                 std::error_code& ec,
                                                 const int64_t timeout) {
-    connect_device(serial,
-                   [=] { oneshot_request(request, false, [=] { finish(); }); });
+    connect_device(serial, [=, this] {
+        oneshot_request(request, false, [this] { finish(); });
+    });
 
     run(timeout);
 
@@ -202,7 +204,7 @@ standalone_handle::timed_host_request(const std::string_view request,
         m_handle.oneshot_request(request, bounded, [&] { timer.cancel(); });
     });
 
-    timer.async_wait([=](auto) { m_context.stop(); });
+    timer.async_wait([this](auto) { m_context.stop(); });
 
     m_context.run();
 
