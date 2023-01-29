@@ -290,10 +290,10 @@ void async_handle::sync_write_data(const callback_t&& callback) {
     m_file->read(m_buffer->data(), buf_size);
 
     m_buffer_ptr = 0;
-    m_buffer_size = static_cast<uint32_t>(m_file->gcount());
+    m_buffer_size = m_file->gcount();
 
     // DATA request: file data trunk, trunk size
-    sync_request("DATA", m_buffer_size, m_buffer->data(),
+    sync_request("DATA", static_cast<uint32_t>(m_buffer_size), m_buffer->data(),
                  [CB] { sync_write_data(std::move(callback)); });
 }
 
