@@ -73,10 +73,12 @@ class client {
      * @return A string of the command output.
      * @param ec std::error_code to indicate what error occurred, if any.
      * @param timeout Timeout in milliseconds.
+     * @param recv_by_socket Whether to receive the output by socket.
      * @note Equivalent to `adb -s <serial> shell <command>` without stdin.
      */
     virtual std::string shell(const std::string_view command,
-                              std::error_code& ec, const int64_t timeout) = 0;
+                              std::error_code& ec, const int64_t timeout,
+                              const bool recv_by_socket = false) = 0;
 
     /// Send an one-shot shell command to the device, using raw PTY.
     /**
@@ -84,10 +86,12 @@ class client {
      * @return A string of the command output, which is not mangled.
      * @param ec std::error_code to indicate what error occurred, if any.
      * @param timeout Timeout in milliseconds.
+     * @param recv_by_socket Whether to receive the output by socket.
      * @note Equivalent to `adb -s <serial> exec-out <command>` without stdin.
      */
     virtual std::string exec(const std::string_view command,
-                             std::error_code& ec, const int64_t timeout) = 0;
+                             std::error_code& ec, const int64_t timeout,
+                             const bool recv_by_socket = false) = 0;
 
     /// Send a file to the device.
     /**

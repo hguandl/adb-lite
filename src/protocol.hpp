@@ -106,6 +106,13 @@ class async_handle {
      */
     void finish();
 
+  protected:
+    /// Error code of the last operation.
+    asio::error_code m_error;
+
+    /// Data or message received from the host.
+    std::string m_data;
+
   private:
     /// Socket I/O event loop.
     asio::io_context& m_context;
@@ -143,14 +150,8 @@ class async_handle {
      */
     size_t m_buffer_size;
 
-    /// Error code of the last operation.
-    asio::error_code m_error;
-
     /// Promise to wait for the tasks in the handle.
     std::promise<void> m_promise;
-
-    /// Data or message received from the host.
-    std::string m_data;
 
     /// Size of the data received from the host.
     /**

@@ -1,3 +1,5 @@
+#include <regex>
+
 #include "client_impl.hpp"
 #include "io_handle_impl.hpp"
 
@@ -25,6 +27,11 @@ std::shared_ptr<client> client::create(const std::string_view serial) {
     return std::make_shared<client_impl>(serial);
 }
 
+using asio::ip::tcp;
+
+client_impl::client_impl(const std::string_view serial)
+    : m_serial(serial), m_acceptor(m_context, tcp::endpoint(tcp::v4(), 0)) {}
+
 std::string client_impl::connect(std::error_code& ec, const int64_t timeout) {
     client_handle handle(m_context);
     const auto request = "host:connect:" + m_serial;
@@ -39,17 +46,33 @@ std::string client_impl::disconnect(std::error_code& ec,
 }
 
 std::string client_impl::shell(const std::string_view command,
-                               std::error_code& ec, const int64_t timeout) {
+                               std::error_code& ec, const int64_t timeout,
+                               const bool recv_by_socket) {
     client_handle handle(m_context);
-    const auto request = std::string("shell:") + command.data();
-    return handle.timed_device_request(m_serial, request, ec, timeout);
+
+    if (recv_by_socket) {
+        const auto request = std::string("shell:") + nc_command(command);
+        return handle.timed_device_request(m_serial, request, m_context,
+                                           m_acceptor, ec, timeout);
+    } else {
+        const auto request = std::string("shell:") + command.data();
+        return handle.timed_device_request(m_serial, request, ec, timeout);
+    }
 }
 
 std::string client_impl::exec(const std::string_view command,
-                              std::error_code& ec, const int64_t timeout) {
+                              std::error_code& ec, const int64_t timeout,
+                              const bool recv_by_socket) {
     client_handle handle(m_context);
-    const auto request = std::string("exec:") + command.data();
-    return handle.timed_device_request(m_serial, request, ec, timeout);
+
+    if (recv_by_socket) {
+        const auto request = std::string("exec:") + nc_command(command);
+        return handle.timed_device_request(m_serial, request, m_context,
+                                           m_acceptor, ec, timeout);
+    } else {
+        const auto request = std::string("exec:") + command.data();
+        return handle.timed_device_request(m_serial, request, ec, timeout);
+    }
 }
 
 bool client_impl::push(const std::filesystem::path& src, const std::string& dst,
@@ -144,6 +167,24 @@ void client_impl::wait_for_device(std::error_code& ec, const int64_t timeout) {
     }
 }
 
+std::string client_impl::nc_command(const std::string_view command) {
+    static const std::regex nc_regex(R"((.+nc -w 3 .+ ).+)");
+
+    std::match_results<std::string_view::const_iterator> match;
+
+    if (std::regex_match(command.cbegin(), command.cend(), match, nc_regex)) {
+        const auto prefix = match[1].str();
+
+        const auto endpoint = m_acceptor.local_endpoint();
+        const auto port = std::to_string(endpoint.port());
+        const auto suffix = " " + port;
+
+        return prefix + suffix;
+    }
+
+    return "";
+}
+
 client_handle::client_handle(asio::io_context& context)
     : async_handle(context) {}
 
@@ -189,6 +230,40 @@ std::string client_handle::timed_device_request(const std::string_view serial,
     });
 
     run(timeout);
+
+    ec = error();
+    return value();
+}
+
+std::string client_handle::timed_device_request(const std::string_view serial,
+                                                const std::string_view request,
+                                                asio::io_context& context,
+                                                tcp::acceptor& acceptor,
+                                                std::error_code& ec,
+                                                const int64_t timeout) {
+    auto conn = tcp_connection::create(context);
+
+    acceptor.async_accept(conn->socket(), [this, conn](const auto& error) {
+        if (error) {
+            m_error = error;
+            finish();
+            return;
+        }
+
+        conn->start([this](const auto& error, auto&& data) {
+            if (error && error != asio::error::eof) {
+                m_error = error;
+            }
+            m_data = std::move(data);
+            finish();
+        });
+    });
+
+    connect_device(serial,
+                   [=, this] { oneshot_request(request, false, [] {}); });
+
+    run(timeout);
+    conn->cancel();
 
     ec = error();
     return value();
