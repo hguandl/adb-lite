@@ -1,0 +1,44 @@
+name: Test C++ compatability
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build-asio-examples:
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-22.04
+          - ubuntu-20.04
+          - macos-13
+          - macos-12
+          - macos-11
+
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: chriskohlhoff/asio
+          ref: asio-1-24-0
+
+      - name: macOS Dependencies
+        if: startsWith(matrix.runner, 'macos-')
+        run: brew install autoconf automake pkg-config
+
+      - name: Configure
+        env:
+          CXXFLAGS: -std=c++20
+        run: |
+          ./autogen.sh
+          ./configure
+        working-directory: asio
+
+      - name: Build
+        run: make -j2
+        working-directory: asio
