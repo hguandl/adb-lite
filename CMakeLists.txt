@@ -6,17 +6,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (MSVC)
   add_compile_options(/W4 /WX /MT)
-  add_compile_options(-D_WIN32_WINNT=0x0601)
 else()
   add_compile_options(-fPIC -Wno-deprecated-declarations)
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif (MSVC)
 
-add_compile_options(-DASIO_STANDALONE -DASIO_NO_DEPRECATED)
-
 add_library(adb-lite STATIC src/protocol.cpp src/client.cpp src/io_handle.cpp)
 target_include_directories(adb-lite PRIVATE include/adb-lite)
 target_include_directories(adb-lite INTERFACE include)
+target_link_libraries(adb-lite PRIVATE asio)
 
 install(DIRECTORY include
          DESTINATION .
@@ -40,9 +38,14 @@ endif()
 FetchContent_Declare(
   asio
   GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
-  GIT_TAG        asio-1-24-0
+  GIT_TAG        asio-1-28-0
 )
 FetchContent_MakeAvailable(asio)
-target_include_directories(adb-lite PRIVATE ${asio_SOURCE_DIR}/asio/include)
+add_library(asio INTERFACE)
+target_compile_options(asio INTERFACE -DASIO_STANDALONE -DASIO_NO_DEPRECATED)
+target_include_directories(asio INTERFACE ${asio_SOURCE_DIR}/asio/include)
+if (MSVC)
+  target_compile_options(asio INTERFACE -D_WIN32_WINNT=0x0601)
+endif (MSVC)
 
 ###### END ASIO ######
